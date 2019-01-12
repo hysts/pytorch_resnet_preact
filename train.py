@@ -304,7 +304,8 @@ def main():
     outdir.mkdir(exist_ok=True, parents=True)
 
     # TensorBoard SummaryWriter
-    writer = SummaryWriter() if run_config['tensorboard'] else None
+    writer = SummaryWriter(
+        outdir.as_posix()) if run_config['tensorboard'] else None
 
     # save config as json file in output directory
     outpath = outdir / 'config.json'
