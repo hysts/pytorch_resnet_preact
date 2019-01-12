@@ -3,7 +3,7 @@ import torch
 import torchvision
 
 
-def get_loader(batch_size, num_workers):
+def get_loader(batch_size, num_workers, use_gpu):
     mean = np.array([0.4914, 0.4822, 0.4465])
     std = np.array([0.2470, 0.2435, 0.2616])
 
@@ -29,7 +29,7 @@ def get_loader(batch_size, num_workers):
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True,
+        pin_memory=use_gpu,
         drop_last=True,
     )
     test_loader = torch.utils.data.DataLoader(
@@ -37,7 +37,7 @@ def get_loader(batch_size, num_workers):
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=False,
-        pin_memory=True,
+        pin_memory=use_gpu,
         drop_last=False,
     )
     return train_loader, test_loader

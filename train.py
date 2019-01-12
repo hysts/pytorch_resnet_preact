@@ -313,7 +313,8 @@ def main():
 
     # data loaders
     train_loader, test_loader = get_loader(optim_config['batch_size'],
-                                           run_config['num_workers'])
+                                           run_config['num_workers'],
+                                           run_config['device'] != 'cpu')
 
     # model
     model = load_model(config['model_config'])
