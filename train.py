@@ -1,22 +1,18 @@
 #!/usr/bin/env python
-# coding: utf-8
 
-import os
-import time
+from collections import OrderedDict
+import argparse
 import importlib
 import json
-from collections import OrderedDict
 import logging
-import argparse
+import pathlib
+import time
 import numpy as np
 import random
 
 import torch
 import torch.nn as nn
-import torch.optim
-import torch.utils.data
-import torch.backends.cudnn
-import torchvision.utils
+import torchvision
 try:
     from tensorboardX import SummaryWriter
     is_tensorboard_available = True
@@ -129,7 +125,7 @@ def load_model(config):
     return Network(config)
 
 
-class AverageMeter(object):
+class AverageMeter:
     def __init__(self):
         self.reset()
 
@@ -281,12 +277,11 @@ def main():
     random.seed(seed)
 
     # create output directory
-    outdir = run_config['outdir']
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+    outdir = pathlib.Path(run_config['outdir'])
+    outdir.mkdir(exist_ok=True, parents=True)
 
     # save config as json file in output directory
-    outpath = os.path.join(outdir, 'config.json')
+    outpath = outdir / 'config.json'
     with open(outpath, 'w') as fout:
         json.dump(config, fout, indent=2)
 
@@ -332,12 +327,8 @@ def main():
             ('epoch', epoch),
             ('accuracy', accuracy),
         ])
-        model_path = os.path.join(outdir, 'model_state.pth')
+        model_path = outdir / 'model_state.pth'
         torch.save(state, model_path)
-
-    if run_config['tensorboard']:
-        outpath = os.path.join(outdir, 'all_scalars.json')
-        writer.export_scalars_to_json(outpath)
 
 
 if __name__ == '__main__':
