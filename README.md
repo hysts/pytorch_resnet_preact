@@ -3,13 +3,13 @@
 ## Usage
 
 ```
-$ python main.py --block_type basic --depth 110 --outdir results
+$ python train.py --block_type basic --depth 110 --outdir results
 ```
 
 ### Use PyramidNet-like Residual Unit
 
 ```
-$ python main.py --block_type basic --depth 110 --remove_first_relu True --add_last_bn True --outdir results
+$ python train.py --block_type basic --depth 110 --remove_first_relu True --add_last_bn True --outdir results
 ```
 
 ## Results on CIFAR-10
