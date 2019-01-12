@@ -271,9 +271,6 @@ def main():
     run_config = config['run_config']
     optim_config = config['optim_config']
 
-    # TensorBoard SummaryWriter
-    writer = SummaryWriter() if run_config['tensorboard'] else None
-
     # set random seed
     seed = run_config['seed']
     torch.manual_seed(seed)
@@ -283,6 +280,9 @@ def main():
     # create output directory
     outdir = pathlib.Path(run_config['outdir'])
     outdir.mkdir(exist_ok=True, parents=True)
+
+    # TensorBoard SummaryWriter
+    writer = SummaryWriter() if run_config['tensorboard'] else None
 
     # save config as json file in output directory
     outpath = outdir / 'config.json'
