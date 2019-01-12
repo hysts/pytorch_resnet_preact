@@ -1,13 +1,6 @@
-# coding: utf-8
-
 import numpy as np
-
 import torch
-import torch.utils.data
-
 import torchvision
-import torchvision.models
-import torchvision.transforms
 
 
 def get_loader(batch_size, num_workers):
