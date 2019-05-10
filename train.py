@@ -20,6 +20,7 @@ except Exception:
     is_tensorboard_available = False
 
 from dataloader import get_loader
+from config import get_default_config
 
 torch.backends.cudnn.benchmark = True
 
@@ -32,99 +33,53 @@ logger = logging.getLogger(__name__)
 global_step = 0
 
 
-def str2bool(s):
-    if s.lower() == 'true':
-        return True
-    elif s.lower() == 'false':
-        return False
-    else:
-        raise RuntimeError('Boolean value expected')
-
-
-def parse_args():
+def load_config():
     parser = argparse.ArgumentParser()
-    # model config
-    parser.add_argument('--block_type', type=str, required=True)
-    parser.add_argument('--depth', type=int, required=True)
-    parser.add_argument('--base_channels', type=int, default=16)
-    parser.add_argument('--remove_first_relu', type=str2bool, default=False)
-    parser.add_argument('--add_last_bn', type=str2bool, default=False)
-    parser.add_argument(
-        '--preact_stage', type=str, default='[true, true, true]')
-
-    # run config
-    parser.add_argument('--outdir', type=str, required=True)
-    parser.add_argument('--seed', type=int, default=17)
-    parser.add_argument('--num_workers', type=int, default=7)
-    parser.add_argument('--device', type=str, default='cuda')
-
-    # optim config
-    parser.add_argument('--epochs', type=int, default=160)
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--base_lr', type=float, default=0.1)
-    parser.add_argument('--weight_decay', type=float, default=1e-4)
-    parser.add_argument('--momentum', type=float, default=0.9)
-    parser.add_argument('--nesterov', type=str2bool, default=True)
-    parser.add_argument('--milestones', type=str, default='[80, 120]')
-    parser.add_argument('--lr_decay', type=float, default=0.1)
-
-    # TensorBoard
-    parser.add_argument(
-        '--tensorboard', dest='tensorboard', action='store_true')
-
+    parser.add_argument('--config', type=str)
+    parser.add_argument('options', default=None, nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    if not is_tensorboard_available:
-        args.tensorboard = False
 
-    model_config = OrderedDict([
-        ('arch', 'resnet_preact'),
-        ('block_type', args.block_type),
-        ('depth', args.depth),
-        ('base_channels', args.base_channels),
-        ('remove_first_relu', args.remove_first_relu),
-        ('add_last_bn', args.add_last_bn),
-        ('preact_stage', json.loads(args.preact_stage)),
-        ('input_shape', (1, 3, 32, 32)),
-        ('n_classes', 10),
-    ])
-
-    optim_config = OrderedDict([
-        ('epochs', args.epochs),
-        ('batch_size', args.batch_size),
-        ('base_lr', args.base_lr),
-        ('weight_decay', args.weight_decay),
-        ('momentum', args.momentum),
-        ('nesterov', args.nesterov),
-        ('milestones', json.loads(args.milestones)),
-        ('lr_decay', args.lr_decay),
-    ])
-
-    data_config = OrderedDict([
-        ('dataset', 'CIFAR10'),
-    ])
-
-    run_config = OrderedDict([
-        ('seed', args.seed),
-        ('outdir', args.outdir),
-        ('num_workers', args.num_workers),
-        ('device', args.device),
-        ('tensorboard', args.tensorboard),
-    ])
-
-    config = OrderedDict([
-        ('model_config', model_config),
-        ('optim_config', optim_config),
-        ('data_config', data_config),
-        ('run_config', run_config),
-    ])
-
+    config = get_default_config()
+    if args.config is not None:
+        config.merge_from_file(args.config)
+    config.merge_from_list(args.options)
+    if not torch.cuda.is_available():
+        config.train.device = 'cpu'
+    config.freeze()
     return config
 
 
 def load_model(config):
-    module = importlib.import_module(config['arch'])
+    module = importlib.import_module(config.model.name)
     Network = getattr(module, 'Network')
     return Network(config)
+
+
+def get_optimizer(config, model):
+    if config.train.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=config.train.base_lr,
+            momentum=config.train.momentum,
+            weight_decay=config.train.weight_decay,
+            nesterov=config.train.nesterov)
+    else:
+        raise ValueError()
+    return optimizer
+
+
+def get_scheduler(config, optimizer):
+    if config.scheduler.name == 'multistep':
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer,
+            milestones=config.scheduler.multistep.milestones,
+            gamma=config.scheduler.multistep.lr_decay)
+    elif config.scheduler.name == 'cosine':
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, config.train.epochs, config.scheduler.cosine.lr_min)
+    else:
+        raise ValueError()
+    return scheduler
 
 
 class AverageMeter:
@@ -144,14 +99,14 @@ class AverageMeter:
         self.avg = self.sum / self.count
 
 
-def train(epoch, model, optimizer, criterion, train_loader, run_config,
+def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
           writer):
     global global_step
 
     logger.info(f'Train {epoch}')
 
     model.train()
-    device = torch.device(run_config['device'])
+    device = torch.device(config.run.device)
 
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
@@ -159,7 +114,7 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
     for step, (data, targets) in enumerate(train_loader):
         global_step += 1
 
-        if run_config['tensorboard'] and step == 0:
+        if config.run.tensorboard and step == 0:
             image = torchvision.utils.make_grid(
                 data, normalize=True, scale_each=True)
             writer.add_image('Train/Image', image, epoch)
@@ -186,7 +141,7 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
         loss_meter.update(loss_, num)
         acc_meter.update(accuracy, num)
 
-        if run_config['tensorboard']:
+        if config.run.tensorboard:
             writer.add_scalar('Train/RunningLoss', loss_, global_step)
             writer.add_scalar('Train/RunningAccuracy', accuracy, global_step)
 
@@ -198,10 +153,11 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
     elapsed = time.time() - start
     logger.info(f'Elapsed {elapsed:.2f}')
 
-    if run_config['tensorboard']:
+    if config.run.tensorboard:
         writer.add_scalar('Train/Loss', loss_meter.avg, epoch)
         writer.add_scalar('Train/Accuracy', acc_meter.avg, epoch)
         writer.add_scalar('Train/Time', elapsed, epoch)
+        writer.add_scalar('Train/lr', scheduler.get_lr()[0], epoch)
 
     train_log = OrderedDict({
         'epoch':
@@ -216,18 +172,18 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
     return train_log
 
 
-def test(epoch, model, criterion, test_loader, run_config, writer):
+def test(epoch, model, criterion, test_loader, config, writer):
     logger.info(f'Test {epoch}')
 
     model.eval()
-    device = torch.device(run_config['device'])
+    device = torch.device(config.run.device)
 
     loss_meter = AverageMeter()
     correct_meter = AverageMeter()
     start = time.time()
     with torch.no_grad():
         for step, (data, targets) in enumerate(test_loader):
-            if run_config['tensorboard'] and epoch == 0 and step == 0:
+            if config.run.tensorboard and epoch == 0 and step == 0:
                 image = torchvision.utils.make_grid(
                     data, normalize=True, scale_each=True)
                 writer.add_image('Test/Image', image, epoch)
@@ -255,7 +211,7 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
     elapsed = time.time() - start
     logger.info(f'Elapsed {elapsed:.2f}')
 
-    if run_config['tensorboard']:
+    if config.run.tensorboard:
         if epoch > 0:
             writer.add_scalar('Test/Loss', loss_meter.avg, epoch)
         writer.add_scalar('Test/Accuracy', accuracy, epoch)
@@ -279,67 +235,54 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
 
 def main():
     # parse command line arguments
-    config = parse_args()
+    config = load_config()
     logger.info(json.dumps(config, indent=2))
 
-    run_config = config['run_config']
-    optim_config = config['optim_config']
-
     # set random seed
-    seed = run_config['seed']
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    seed = config.run.seed
     random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
 
     # create output directory
-    outdir = pathlib.Path(run_config['outdir'])
+    outdir = pathlib.Path(config.run.outdir)
     outdir.mkdir(exist_ok=True, parents=True)
 
     # TensorBoard SummaryWriter
     writer = SummaryWriter(
-        outdir.as_posix()) if run_config['tensorboard'] else None
+        outdir.as_posix()) if config.run.tensorboard else None
 
-    # save config as json file in output directory
-    outpath = outdir / 'config.json'
-    with open(outpath, 'w') as fout:
-        json.dump(config, fout, indent=2)
+    # save config
+    with open(outdir / 'config.yaml', 'w') as fout:
+        fout.write(str(config))
 
     # data loaders
-    train_loader, test_loader = get_loader(optim_config['batch_size'],
-                                           run_config['num_workers'],
-                                           run_config['device'] != 'cpu')
+    train_loader, test_loader = get_loader(config)
 
     # model
-    model = load_model(config['model_config'])
-    model.to(torch.device(run_config['device']))
+    model = load_model(config)
+    model.to(torch.device(config.run.device))
     n_params = sum([param.view(-1).size()[0] for param in model.parameters()])
     logger.info(f'n_params: {n_params}')
 
     criterion = nn.CrossEntropyLoss(reduction='mean')
 
     # optimizer
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=optim_config['base_lr'],
-        momentum=optim_config['momentum'],
-        weight_decay=optim_config['weight_decay'],
-        nesterov=optim_config['nesterov'])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=optim_config['milestones'],
-        gamma=optim_config['lr_decay'])
+    optimizer = get_optimizer(config, model)
+    scheduler = get_scheduler(config, optimizer)
 
     # run test before start training
-    test(0, model, criterion, test_loader, run_config, writer)
+    test(0, model, criterion, test_loader, config, writer)
 
     epoch_logs = []
-    for epoch in range(1, optim_config['epochs'] + 1):
+    for epoch in range(config.train.epochs):
+        epoch += 1
         scheduler.step()
 
-        train_log = train(epoch, model, optimizer, criterion, train_loader,
-                          run_config, writer)
-        test_log = test(epoch, model, criterion, test_loader, run_config,
-                        writer)
+        train_log = train(epoch, model, optimizer, scheduler, criterion,
+                          train_loader, config, writer)
+        test_log = test(epoch, model, criterion, test_loader, config, writer)
 
         epoch_log = train_log.copy()
         epoch_log.update(test_log)

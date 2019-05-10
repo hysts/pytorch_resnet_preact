@@ -3,7 +3,7 @@ import torch
 import torchvision
 
 
-def get_loader(batch_size, num_workers, use_gpu):
+def get_loader(config):
     mean = np.array([0.4914, 0.4822, 0.4465])
     std = np.array([0.2470, 0.2435, 0.2616])
 
@@ -24,12 +24,15 @@ def get_loader(batch_size, num_workers, use_gpu):
     test_dataset = torchvision.datasets.CIFAR10(
         dataset_dir, train=False, transform=test_transform, download=True)
 
+    batch_size = config.train.batch_size
+    num_workers = config.run.num_workers
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=use_gpu,
+        pin_memory=False,
         drop_last=True,
     )
     test_loader = torch.utils.data.DataLoader(
@@ -37,7 +40,7 @@ def get_loader(batch_size, num_workers, use_gpu):
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=False,
-        pin_memory=use_gpu,
+        pin_memory=False,
         drop_last=False,
     )
     return train_loader, test_loader

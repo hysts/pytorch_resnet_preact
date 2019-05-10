@@ -169,15 +169,15 @@ class Network(nn.Module):
     def __init__(self, config):
         super(Network, self).__init__()
 
-        input_shape = config['input_shape']
-        n_classes = config['n_classes']
+        input_shape = config.model.input_shape
+        n_classes = config.model.n_classes
 
-        base_channels = config['base_channels']
-        self._remove_first_relu = config['remove_first_relu']
-        self._add_last_bn = config['add_last_bn']
-        block_type = config['block_type']
-        depth = config['depth']
-        preact_stage = config['preact_stage']
+        base_channels = config.model.base_channels
+        self._remove_first_relu = config.model.remove_first_relu
+        self._add_last_bn = config.model.add_last_bn
+        block_type = config.model.block_type
+        depth = config.model.depth
+        preact_stage = config.model.preact_stage
 
         assert block_type in ['basic', 'bottleneck']
         if block_type == 'basic':
@@ -240,7 +240,7 @@ class Network(nn.Module):
                     preact):
         stage = nn.Sequential()
         for index in range(n_blocks):
-            block_name = 'block{}'.format(index + 1)
+            block_name = f'block{index + 1}'
             if index == 0:
                 stage.add_module(
                     block_name,
