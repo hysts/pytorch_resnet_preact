@@ -148,13 +148,13 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
           writer):
     global global_step
 
-    logger.info('Train {}'.format(epoch))
+    logger.info(f'Train {epoch}')
 
     model.train()
     device = torch.device(run_config['device'])
 
     loss_meter = AverageMeter()
-    accuracy_meter = AverageMeter()
+    acc_meter = AverageMeter()
     start = time.time()
     for step, (data, targets) in enumerate(train_loader):
         global_step += 1
@@ -184,31 +184,23 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
         accuracy = correct_ / num
 
         loss_meter.update(loss_, num)
-        accuracy_meter.update(accuracy, num)
+        acc_meter.update(accuracy, num)
 
         if run_config['tensorboard']:
             writer.add_scalar('Train/RunningLoss', loss_, global_step)
             writer.add_scalar('Train/RunningAccuracy', accuracy, global_step)
 
         if step % 100 == 0:
-            logger.info('Epoch {} Step {}/{} '
-                        'Loss {:.4f} ({:.4f}) '
-                        'Accuracy {:.4f} ({:.4f})'.format(
-                            epoch,
-                            step,
-                            len(train_loader),
-                            loss_meter.val,
-                            loss_meter.avg,
-                            accuracy_meter.val,
-                            accuracy_meter.avg,
-                        ))
+            logger.info(f'Epoch {epoch} Step {step}/{len(train_loader)} '
+                        f'Loss {loss_meter.val:.4f} ({loss_meter.avg:.4f}) '
+                        f'Accuracy {acc_meter.val:.4f} ({acc_meter.avg:.4f})')
 
     elapsed = time.time() - start
-    logger.info('Elapsed {:.2f}'.format(elapsed))
+    logger.info(f'Elapsed {elapsed:.2f}')
 
     if run_config['tensorboard']:
         writer.add_scalar('Train/Loss', loss_meter.avg, epoch)
-        writer.add_scalar('Train/Accuracy', accuracy_meter.avg, epoch)
+        writer.add_scalar('Train/Accuracy', acc_meter.avg, epoch)
         writer.add_scalar('Train/Time', elapsed, epoch)
 
     train_log = OrderedDict({
@@ -217,7 +209,7 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
         'train':
         OrderedDict({
             'loss': loss_meter.avg,
-            'accuracy': accuracy_meter.avg,
+            'accuracy': acc_meter.avg,
             'time': elapsed,
         }),
     })
@@ -225,7 +217,7 @@ def train(epoch, model, optimizer, criterion, train_loader, run_config,
 
 
 def test(epoch, model, criterion, test_loader, run_config, writer):
-    logger.info('Test {}'.format(epoch))
+    logger.info(f'Test {epoch}')
 
     model.eval()
     device = torch.device(run_config['device'])
@@ -257,11 +249,11 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
 
     accuracy = correct_meter.sum / len(test_loader.dataset)
 
-    logger.info('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(
-        epoch, loss_meter.avg, accuracy))
+    logger.info(
+        f'Epoch {epoch} Loss {loss_meter.avg:.4f} Accuracy {accuracy:.4f}')
 
     elapsed = time.time() - start
-    logger.info('Elapsed {:.2f}'.format(elapsed))
+    logger.info(f'Elapsed {elapsed:.2f}')
 
     if run_config['tensorboard']:
         if epoch > 0:
@@ -321,7 +313,7 @@ def main():
     model = load_model(config['model_config'])
     model.to(torch.device(run_config['device']))
     n_params = sum([param.view(-1).size()[0] for param in model.parameters()])
-    logger.info('n_params: {}'.format(n_params))
+    logger.info(f'n_params: {n_params}')
 
     criterion = nn.CrossEntropyLoss(reduction='mean')
 
