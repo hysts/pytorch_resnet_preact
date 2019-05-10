@@ -1,15 +1,24 @@
 # PyTorch Implementation of ResNet-preact
 
+## Requirements
+
+* Python >= 3.6
+* PyTorch >= 1.0.1
+* torchvision
+* [tensorboardX](https://github.com/lanpa/tensorboardX)
+* [YACS](https://github.com/rbgirshick/yacs)
+
+
 ## Usage
 
 ```
-$ python train.py --block_type basic --depth 110 --outdir results
+$ python train.py model.block_type basic model.depth 110 run.outdir results
 ```
 
 ### Use PyramidNet-like Residual Unit
 
 ```
-$ python train.py --block_type basic --depth 110 --remove_first_relu True --add_last_bn True --outdir results
+$ python train.py model.block_type basic model.depth 110 model.remove_first_relu True model.add_last_bn True run.outdir results
 ```
 
 ## Results on CIFAR-10
