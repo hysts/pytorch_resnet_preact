@@ -13,11 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
-try:
-    from tensorboardX import SummaryWriter
-    is_tensorboard_available = True
-except Exception:
-    is_tensorboard_available = False
+from tensorboardX import SummaryWriter
 
 from dataloader import get_loader
 from config import get_default_config
